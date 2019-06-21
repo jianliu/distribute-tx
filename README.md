@@ -2,11 +2,13 @@
 分布式事务，保证mysql主事务业务与非事务业务的最终一致性
 
 ##典型场景
+
     begin transaction
     mysql.update 
     redis.delete
     mongodb.update
     commit or rollback
+    
 正常情况下可能会出现多种数据不一致的情况
 
 情况1
@@ -116,5 +118,6 @@ Spring配置
 Aspectj本身无自调用问题，请勿担心    
 
 ###注意点
+
 由于aspectj对版本依赖较为严重，使用时可能需要根据当前jdk版本来调整aspectj版本及插件版本
 同时aspectj目前暂时无法和lombok共存
