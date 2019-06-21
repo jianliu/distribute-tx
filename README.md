@@ -4,9 +4,10 @@
 ## 典型场景
 
     begin transaction
-    mysql.update 
-    redis.delete
     mongodb.update
+    redis.delete
+    mysql.update 
+    ... 操作 可能异常 ...
     commit or rollback
     
 正常情况下可能会出现多种数据不一致的情况
@@ -22,11 +23,14 @@
      
 情况2
   
-    mysql.update 成功
+    mongodb.update    成功
     redis.delete 成功
-    mongodb.update 成功
+    mysql.update 成功
+    ...
+    transaction commit
     =>te
-    另一个线在redis.delete后，transaction commit前 立即查询mysql，可能出现查到老数据的情况
+    另一个线程在redis.delete后,transaction commit前 立即查询mysql并缓存，可能出现缓存老数据的情况
+    如果在事务中直接设置redis缓存，又可能出现情况1遭遇的难题
     
 ## 解决方案
 将非事务操作封装成task记录和mysql更新一起写入同一个mysql库，利用单库的ACID来保证事务一致性
