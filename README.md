@@ -1,7 +1,7 @@
 # distribute-tx
 分布式事务，保证mysql主事务业务与非事务业务的最终一致性
 
-##典型场景
+## 典型场景
 
     begin transaction
     mysql.update 
@@ -28,7 +28,7 @@
     =>te
     另一个线在redis.delete后，transaction commit前 立即查询mysql，可能出现查到老数据的情况
     
-##解决方案
+## 解决方案
 将非事务操作封装成task记录和mysql更新一起写入同一个mysql库，利用单库的ACID来保证事务一致性
 异步任务获取task任务后找到对应的bean执行对应的方法，达到最终一致性的效果
 
@@ -37,7 +37,7 @@
 利用一致性hash思路来保证每台机器获取的任务互不干扰，正常情况下每台机器仅会获取自己生产的任务
 如果机器A down掉后，其他机器可自动接手A的任务，防止任务被长时间延迟执行
 
-##使用方式
+## 使用方式
 
 ### MAVEN依赖及插件引入
 
@@ -77,7 +77,7 @@
                 </executions>
             </plugin>        
 
-###代码引入
+### 代码引入
 
 配置property
 
@@ -112,12 +112,12 @@ Spring配置
         logger.info("unTransactionUpdate run:" + i);
     }    
 
-###运行前
+### 运行前
 
 执行mvn package打包编译，使aspectj可重新编译带@DTransactional、 @DTMethod 的Class，达到分布式事务增强效果
 Aspectj本身无自调用问题，请勿担心    
 
-###注意点
+### 注意点
 
 由于aspectj对版本依赖较为严重，使用时可能需要根据当前jdk版本来调整aspectj版本及插件版本
 同时aspectj目前暂时无法和lombok共存
