@@ -10,6 +10,9 @@
     <properties>
         <fastxml.version>2.9.9</fastxml.version>
         <spring.data.jdbc.version>1.0.6.RELEASE</spring.data.jdbc.version>
+        <java.source-target.version>1.8</java.source-target.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <aspectj.version>1.9.2</aspectj.version>
     </properties>
 
     <build>
@@ -35,6 +38,61 @@
                 </configuration>
             </plugin>
 
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>aspectj-maven-plugin</artifactId>
+                <version>1.10</version>
+                <configuration>
+                    <!--<showWeaveInfo>true</showWeaveInfo> -->
+                    <source>${java.source-target.version}</source>
+                    <target>${java.source-target.version}</target>
+                    <Xlint>ignore</Xlint>
+                    <complianceLevel>${java.source-target.version}</complianceLevel>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <!--<verbose>true</verbose> -->
+                    <!--<warn>constructorName,packageDefaultMethod,deprecation,maskedCatchBlocks,unusedLocals,unusedArguments,unusedImport</warn> -->
+                </configuration>
+                <executions>
+                    <execution>
+                        <!-- IMPORTANT -->
+                        <goals>
+                            <goal>compile</goal>
+                            <goal>test-compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <!--<dependencies>-->
+                <!--<dependency>-->
+                <!--<groupId>org.aspectj</groupId>-->
+                <!--<artifactId>aspectjtools</artifactId>-->
+                <!--<version>${aspectj.version}</version>-->
+                <!--</dependency>-->
+                <!--</dependencies>-->
+            </plugin>
+
+            <!--<plugin>-->
+            <!--<groupId>org.codehaus.mojo</groupId>-->
+            <!--<artifactId>aspectj-maven-plugin</artifactId>-->
+            <!--<version>1.10</version>-->
+            <!--<configuration>-->
+            <!--<complianceLevel>1.8</complianceLevel>-->
+            <!--<source>1.8</source>-->
+            <!--<target>1.8</target>-->
+            <!--<showWeaveInfo>true</showWeaveInfo>-->
+
+            <!--</configuration>-->
+            <!--<executions>-->
+            <!--<execution>-->
+            <!--<goals>-->
+            <!--&lt;!&ndash;use this goal to weave all your main classes&ndash;&gt;-->
+            <!--<goal>compile</goal>-->
+            <!--&lt;!&ndash;use this goal to weave all your test classes&ndash;&gt;-->
+            <!--<goal>test-compile</goal>-->
+            <!--</goals>-->
+            <!--</execution>-->
+            <!--</executions>-->
+            <!--</plugin>-->
+
 
         </plugins>
     </build>
@@ -46,13 +104,13 @@
         <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjrt</artifactId>
-            <version>1.9.3</version>
+            <version>${aspectj.version}</version>
         </dependency>
         <!--to introduce aspect to java class in load time-->
         <dependency>
             <groupId>org.aspectj</groupId>
             <artifactId>aspectjweaver</artifactId>
-            <version>1.9.3</version>
+            <version>${aspectj.version}</version>
         </dependency>
 
         <dependency>

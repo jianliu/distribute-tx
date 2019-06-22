@@ -2,14 +2,15 @@ package com.jianliu.distributetx.task;
 
 import com.jianliu.distributetx.BaseLogger;
 import com.jianliu.distributetx.FailureJobHandler;
-import com.jianliu.distributetx.config.DistributeTxConfiguration;
-import com.jianliu.distributetx.config.GlobalTxConfig;
-import com.jianliu.distributetx.entity.AppNode;
-import com.jianliu.distributetx.entity.Task;
+import com.jianliu.distributetx.IllegalDTTaskException;
+import com.jianliu.distributetx.config.DTConfiguration;
+import com.jianliu.distributetx.config.DTGlobalConfig;
+import com.jianliu.distributetx.entity.DTAppNode;
+import com.jianliu.distributetx.entity.DTTask;
 import com.jianliu.distributetx.repository.AppNodeRepository;
 import com.jianliu.distributetx.repository.TaskRepository;
 import com.jianliu.distributetx.serde.Serializer;
-import com.jianliu.distributetx.tx.invocation.MethodInvocation;
+import com.jianliu.distributetx.tx.invocation.DTMethodInvocation;
 import org.springframework.beans.BeansException;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,7 +35,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * @author jian.liu
  * @since 2019/6/18
  */
-public class TaskManager extends BaseLogger implements InitializingBean, ApplicationListener<ApplicationContextEvent>, ApplicationContextAware {
+public class DTTaskManager extends BaseLogger implements InitializingBean, ApplicationListener<ApplicationContextEvent>, ApplicationContextAware {
 
     /**
      * 心跳;计算 lowerHashBound，upperHashBound间隔，单位ms
@@ -52,7 +53,7 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
     private TaskRepository taskRepository;
 
     @Resource
-    private GlobalTxConfig globalTxConfig;
+    private DTGlobalConfig globalTxConfig;
 
     @Resource
     private Serializer serializer;
@@ -63,7 +64,7 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
     /**
      * 非自动注入
      *
-     * @see DistributeTxConfiguration
+     * @see DTConfiguration
      */
     private DataSource dataSource;
 
@@ -71,7 +72,7 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
 
     private JdbcTemplate jdbcTemplate;
 
-    private volatile AppNode current;
+    private volatile DTAppNode current;
 
     /**
      * 本机查询任务时的低、高值
@@ -93,7 +94,7 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
      */
     private TimerTask timerTask = new HeartBeatTask();
 
-    private Map<String, Method> methodCache = new ConcurrentHashMap<>();
+    private Map<DTMethodInvocation, Method> methodCache = new ConcurrentHashMap<>();
 
     @Override
     public void setApplicationContext(ApplicationContext applicationContext) throws BeansException {
@@ -109,12 +110,11 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
     @Override
     public void onApplicationEvent(ApplicationContextEvent event) {
 
-        logger.info("event:{}", event);
         //app加载完成后启动任务
         ensureRegisterAppNode();
 
         if (event instanceof ContextRefreshedEvent) {
-            logger.info("in event:{}", event);
+            logger.info("applicationContext加载结束，distribute_tx 心跳任务开启、异步扫描任务开启");
             timer.schedule(timerTask, 2000, Heart_Beat_Inteval);
             //make sure run once
             calHashBound();
@@ -136,8 +136,8 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
                     break;
                 }
 
-                List<Task> tasks = taskRepository.findNewTaskList(jdbcTemplate, globalTxConfig.getAppName(), lowerHashBound, upperHashBound);
-                List<Task> retryTaskList = taskRepository.findRetryTaskList(jdbcTemplate, globalTxConfig.getAppName(), lowerHashBound, upperHashBound);
+                List<DTTask> tasks = taskRepository.findNewTaskList(jdbcTemplate, globalTxConfig.getAppName(), lowerHashBound, upperHashBound);
+                List<DTTask> retryTaskList = taskRepository.findRetryTaskList(jdbcTemplate, globalTxConfig.getAppName(), lowerHashBound, upperHashBound);
                 runTasks(tasks);
                 runTasks(retryTaskList);
             }
@@ -160,9 +160,9 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
                 }
 
                 try {
-                    List<Task> failedTaskList = taskRepository.findFailedTaskList(jdbcTemplate, globalTxConfig.getAppName(), lowerHashBound, upperHashBound);
-                    for (Task task : failedTaskList) {
-                        MethodInvocation methodInvocation = getMethodInvocation(task);
+                    List<DTTask> failedTaskList = taskRepository.findFailedTaskList(jdbcTemplate, globalTxConfig.getAppName(), lowerHashBound, upperHashBound);
+                    for (DTTask task : failedTaskList) {
+                        DTMethodInvocation methodInvocation = getMethodInvocation(task);
 
                         if (methodInvocation == null) {
                             logger.warn("method invocation is null,app:{},txId:{}", task.getAppName(), task.getTxId());
@@ -172,7 +172,7 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
                         failureJobHandler.handle(methodInvocation);
                         int currentVersion = task.getVersion();
                         updateVersion(task);
-                        task.setStatus(Task.STATUS_HANDLED);
+                        task.setStatus(DTTask.STATUS_HANDLED);
                         taskRepository.updateStatus(jdbcTemplate, task, currentVersion);
                     }
                 } catch (Exception e) {
@@ -182,23 +182,29 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
         }
     });
 
-    private MethodInvocation getMethodInvocation(Task task) {
+    private DTMethodInvocation getMethodInvocation(DTTask task) {
         byte[] taskDetail = task.getTaskDetail();
-        MethodInvocation methodInvocation = null;
+        DTMethodInvocation methodInvocation = null;
         try {
-            methodInvocation = serializer.deserialize(taskDetail, MethodInvocation.class);
+            methodInvocation = serializer.deserialize(taskDetail, DTMethodInvocation.class);
         } catch (Exception e) {
             logger.error("解析任务失败", e);
         }
         return methodInvocation;
     }
 
-    private void runTasks(List<Task> tasks) {
-        for (Task task : tasks) {
+    private void runTasks(List<DTTask> tasks) {
+        for (DTTask task : tasks) {
             try {
                 runTask(task);
+            } catch (IllegalDTTaskException e) {
+                logger.error("任务已无效", e);
+                task.setStatus(DTTask.STATUS_INVALID_TASK);
+                taskRepository.updateStatus(jdbcTemplate, task, task.getVersion());
             } catch (Exception e) {
                 logger.error("执行单个异步任务失败,{}-{}", task.getAppName(), task.getTxId(), e);
+                task.setStatus(DTTask.STATUS_FAILURE);
+                taskRepository.updateStatus(jdbcTemplate, task, task.getVersion());
             }
         }
     }
@@ -208,38 +214,42 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
      *
      * @param task
      */
-    private void runTask(Task task) {
-        MethodInvocation methodInvocation = getMethodInvocation(task);
+    private void runTask(DTTask task) {
+        DTMethodInvocation methodInvocation = getMethodInvocation(task);
+        if (logger.isDebugEnabled()) {
+            logger.debug("即将开始之前dt异步任务，taskId:{},txId:{}", task.getId(), task.getTxId());
+        }
 
         if (methodInvocation == null) {
             logger.warn("method invocation is null,app:{},txId:{}", task.getAppName(), task.getTxId());
+            task.setStatus(DTTask.STATUS_INVALID_TASK);
+            taskRepository.updateStatus(jdbcTemplate, task, task.getVersion());
             return;
         }
         Class beanClass = methodInvocation.getClazz();
         Object[] parameters = methodInvocation.getParameters();
         String methodName = methodInvocation.getMethod();
-        String methodCacheKey = methodInvocation.getClazz() + "-" + methodName;
-        Object bean = applicationContext.getBean(beanClass);
 
+        Object bean = applicationContext.getBean(beanClass);
         if (bean == null) {
-            logger.error("执行异步任务失败，bean不存在:{}", beanClass);
-            return;
+            logger.error("执行异步任务失败，bean不存在:{},txId:{}", beanClass, task.getTxId());
+            throw new IllegalDTTaskException("bean不存在:" + beanClass);
         }
 
-        Method targetMethod = methodCache.get(methodCacheKey);
+        Method targetMethod = methodCache.get(methodInvocation);
         if (targetMethod == null) {
-            for (Method method : bean.getClass().getSuperclass().getDeclaredMethods()) {
-                if (method.getName().equals(methodName)) {
-                    targetMethod = method;
-                    methodCache.putIfAbsent(methodCacheKey, method);
-                    break;
-                }
+            try {
+                targetMethod = bean.getClass().getMethod(methodName, methodInvocation.getParameterTypes());
+                methodCache.putIfAbsent(methodInvocation, targetMethod);
+            } catch (NoSuchMethodException e) {
+                logger.error("method:{}不存在,txId:{}", bean.getClass(), methodName, task.getTxId());
+                throw new IllegalDTTaskException("method不存在:" + beanClass + "." + methodName);
             }
         }
 
         if (targetMethod == null) {
-            logger.error("无效的method:{}.{}", beanClass, methodName);
-            return;
+            logger.error("无效的method:{}.{},txId:{}", beanClass, methodName, task.getTxId());
+            throw new IllegalDTTaskException("method不存在:" + beanClass + "." + methodName);
         }
 
         executeTaskTransactional(task, parameters, bean, targetMethod);
@@ -254,8 +264,8 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
      * @param targetMethod
      */
     @Transactional
-    public void executeTaskTransactional(Task task, Object[] parameters, Object bean, Method targetMethod) {
-        task.setStatus(Task.STATUS_DOING);
+    public void executeTaskTransactional(DTTask task, Object[] parameters, Object bean, Method targetMethod) {
+        task.setStatus(DTTask.STATUS_DOING);
         int currentVersion = task.getVersion();
         //利用版本号来防止多个进程重复执行任务导致状态变化不可控
         int result = taskRepository.updateStatus(jdbcTemplate, task, currentVersion);
@@ -264,16 +274,19 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
             try {
                 task.setTryTimes(task.getTryTimes() + 1);
                 targetMethod.invoke(bean, parameters);
-                task.setStatus(Task.STATUS_SUCCESS);
+                task.setStatus(DTTask.STATUS_SUCCESS);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("事务执行task成功，taskId:{},txId:{}", task.getId(), task.getTxId());
+                }
                 //taskRepository.updateStatus(jdbcTemplate, task, currentVersion);
                 //任务执行成功，删除任务
                 taskRepository.deleteById(jdbcTemplate, task);
                 if (logger.isDebugEnabled()) {
-                    logger.debug("删除已执行成功的任务,txId:{}", task.getTxId());
+                    logger.debug("事务删除已执行成功的任务,txId:{}", task.getTxId());
                 }
             } catch (Exception e) {
                 logger.error("appName-txId:{}-{}执行任务时系统异常", task.getAppName(), task.getTxId(), e);
-                task.setStatus(Task.STATUS_FAILURE);
+                task.setStatus(DTTask.STATUS_FAILURE);
                 //任务执行失败，记录状态
                 taskRepository.updateStatus(jdbcTemplate, task, currentVersion);
                 if (logger.isDebugEnabled()) {
@@ -283,30 +296,30 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
         }
     }
 
-    private void updateVersion(Task task) {
+    private void updateVersion(DTTask task) {
         task.setVersion(task.getVersion() + 1);
     }
-
 
     private void ensureRegisterAppNode() {
         logger.info("开始ensureRegisterAppNode");
         String ip = globalTxConfig.getIp();
 
-        AppNode appNode = appNodeRepository.findByIp(jdbcTemplate, globalTxConfig.getAppName(), ip);
+        DTAppNode appNode = appNodeRepository.findByIp(jdbcTemplate, globalTxConfig.getAppName(), ip);
         if (appNode != null) {
-            if (AppNode.STATUS_OFFLINE.equals(appNode.getStatus())) {
-                appNode.setStatus(AppNode.STATUS_ONLINE);
+            appNode.setHashCode(globalTxConfig.getHashCode());
+            if (DTAppNode.STATUS_OFFLINE.equals(appNode.getStatus())) {
+                appNode.setStatus(DTAppNode.STATUS_ONLINE);
             }
             appNodeRepository.heartBeat(jdbcTemplate, appNode);
             current = appNode;
             return;
         }
 
-        appNode = new AppNode();
+        appNode = new DTAppNode();
         appNode.setCreateTime(new Date());
         appNode.setHashCode(globalTxConfig.getHashCode());
         appNode.setIp(globalTxConfig.getIp());
-        appNode.setStatus(AppNode.STATUS_ONLINE);
+        appNode.setStatus(DTAppNode.STATUS_ONLINE);
         appNode.setLastHeartBeatTime(new Date());
         appNode.setAppName(globalTxConfig.getAppName());
         appNodeRepository.insert(jdbcTemplate, appNode);
@@ -322,7 +335,7 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
 
         public void run() {
             //心跳
-            current.setStatus(AppNode.STATUS_ONLINE);
+            current.setStatus(DTAppNode.STATUS_ONLINE);
             current.setLastHeartBeatTime(new Date());
             appNodeRepository.heartBeat(jdbcTemplate, current);
 
@@ -334,18 +347,18 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
      * 计算hash的上下界
      */
     private void calHashBound() {
-        List<AppNode> appNodeList = appNodeRepository.findAvaibleList(jdbcTemplate, globalTxConfig.getAppName(),
+        List<DTAppNode> appNodeList = appNodeRepository.findAvaibleList(jdbcTemplate, globalTxConfig.getAppName(),
                 new Date(new Date().getTime() - AVAIBLE_TIME_BEFORE_CURRENT));
         int size = appNodeList.size();
         if (size == 0) {
             //正常情况不应该出现此类情况，至少本机是有效的
-            logger.warn("appNodeList.size() == 0 直接返回 正常情况不应该出现此类情况，至少本机是有效的");
+            logger.warn("appNodeList.size()==0 直接返回,异常情况，发现当前实例无正常心跳(DEBUG模式下是正常现象)");
             return;
         }
 
-        Collections.sort(appNodeList, Comparator.comparing(AppNode::getHashCode));
+        Collections.sort(appNodeList, Comparator.comparing(DTAppNode::getHashCode));
         boolean hitCurrent = false;
-        for (AppNode node : appNodeList) {
+        for (DTAppNode node : appNodeList) {
             if (node.getId().equals(current.getId())) {
                 hitCurrent = true;
             }
@@ -364,7 +377,7 @@ public class TaskManager extends BaseLogger implements InitializingBean, Applica
         }
 
         for (int i = 0; i < size; i++) {
-            AppNode node = appNodeList.get(i);
+            DTAppNode node = appNodeList.get(i);
             if (node.getId().equals(current.getId())) {
                 if (i == 0) {
                     //本机是第一个

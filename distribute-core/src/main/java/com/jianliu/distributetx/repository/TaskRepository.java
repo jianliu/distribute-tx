@@ -1,7 +1,7 @@
 package com.jianliu.distributetx.repository;
 
 import com.jianliu.distributetx.BaseLogger;
-import com.jianliu.distributetx.entity.Task;
+import com.jianliu.distributetx.entity.DTTask;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 
@@ -23,52 +23,54 @@ public class TaskRepository extends BaseLogger {
 
     private TaskMapper taskMapper = new TaskMapper();
 
-    public void insert(JdbcTemplate jdbcTemplate, Task task) {
+    public void insert(JdbcTemplate jdbcTemplate, DTTask task) {
 
         String sql = "INSERT INTO `distx_task` (`hash_code`,`status`,`task_detail`, `try_times`,`tx_id`,`consumer_time`,`create_time`,`app_name`,`version`) " +
                 "VALUES(?,?,?,?,?,?,?,?,?)";
-        int result = jdbcTemplate.update(sql, task.getHashCode(), task.getStatus(),
+        jdbcTemplate.update(sql, task.getHashCode(), task.getStatus(),
                 new ByteArrayInputStream(task.getTaskDetail()),
                 task.getTryTimes(), task.getTxId(), task.getConsumerTime(), task.getCreateTime(), task.getAppName(), 1);
-        if (result == 1) {
-            System.out.println("save ok");
+
+        Integer id = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID() as value", Integer.class);
+        task.setId(id);
+        if (logger.isDebugEnabled()) {
+            logger.debug("添加任务，任务id:{}", id);
         }
     }
 
-    public List<Task> findNewTaskList(JdbcTemplate jdbcTemplate, String appName, long lowerHash, long upperHash) {
+    public List<DTTask> findNewTaskList(JdbcTemplate jdbcTemplate, String appName, long lowerHash, long upperHash) {
         //SingleColumnRowMapper.mapRow
         String sql = "select * from distx_task where app_name =? and hash_code > ? and hash_code <= ? and status = 1 limit 20 ";
-        List<Task> taskList = jdbcTemplate.query(sql, new Object[]{appName, lowerHash, upperHash}, taskMapper);
-        return taskList;
+        return jdbcTemplate.query(sql, new Object[]{appName, lowerHash, upperHash}, taskMapper);
     }
 
-    public List<Task> findRetryTaskList(JdbcTemplate jdbcTemplate, String appName, long lowerHash, long upperHash) {
+    public List<DTTask> findRetryTaskList(JdbcTemplate jdbcTemplate, String appName, long lowerHash, long upperHash) {
         //SingleColumnRowMapper.mapRow
         String sql = "select * from distx_task where app_name =? and hash_code > ? and hash_code <= ? and status = 4 and try_times < 5 limit 20 ";
         return jdbcTemplate.query(sql, new Object[]{appName, lowerHash, upperHash}, taskMapper);
     }
 
-    public List<Task> findFailedTaskList(JdbcTemplate jdbcTemplate, String appName, long lowerHash, long upperHash) {
+    public List<DTTask> findFailedTaskList(JdbcTemplate jdbcTemplate, String appName, long lowerHash, long upperHash) {
         //SingleColumnRowMapper.mapRow
         String sql = "select * from distx_task where app_name =? and hash_code > ? and hash_code <= ? and status = 4 and try_times >= 5 limit 20 ";
         return jdbcTemplate.query(sql, new Object[]{appName, lowerHash, upperHash}, taskMapper);
     }
 
-    public int updateStatus(JdbcTemplate jdbcTemplate, Task task, int currentVersion) {
+    public int updateStatus(JdbcTemplate jdbcTemplate, DTTask task, int currentVersion) {
         String sql = "update distx_task set status = ?,consumer_time=?,version = ?,try_times=? where id = ? and  version = ?";
         return jdbcTemplate.update(sql, task.getStatus(), new Date(), task.getVersion(), task.getTryTimes(), task.getId(), currentVersion);
     }
 
-    public int deleteById(JdbcTemplate jdbcTemplate, Task task) {
+    public int deleteById(JdbcTemplate jdbcTemplate, DTTask task) {
         String sql = "delete from  distx_task  where id = ? ";
         return jdbcTemplate.update(sql, task.getId());
     }
 
 
-    static class TaskMapper implements RowMapper<Task> {
+    static class TaskMapper implements RowMapper<DTTask> {
 
-        public Task mapRow(ResultSet rs, int rowNum) throws SQLException {
-            Task task = new Task();
+        public DTTask mapRow(ResultSet rs, int rowNum) throws SQLException {
+            DTTask task = new DTTask();
             task.setId(rs.getInt("id"));
             task.setAppName(rs.getString("app_name"));
             task.setHashCode(rs.getLong("hash_code"));

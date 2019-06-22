@@ -1,5 +1,6 @@
 package com.jianliu.distributetx.config;
 
+import com.jianliu.distributetx.anno.DTMethod;
 import com.jianliu.distributetx.util.CommonUtils;
 import com.jianliu.distributetx.util.Hashing;
 import org.springframework.beans.factory.InitializingBean;
@@ -7,12 +8,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 
 /**
- * class GlobalTxConfig
+ * class DTGlobalConfig
  *
  * @author jianliu
  * @since 2019/6/19
  */
-public class GlobalTxConfig implements InitializingBean {
+public class DTGlobalConfig implements InitializingBean {
 
     @Value("${distribute.tx.appName:}")
     private String appName;
@@ -33,7 +34,7 @@ public class GlobalTxConfig implements InitializingBean {
         }
 
         String rule = appName + "Node" + ip + "#1";
-        hashCode = Hashing.MURMUR_HASH.hash(rule);
+        hashCode = Math.abs(Hashing.MURMUR_HASH.hash(rule));
     }
 
     public String getAppName() {
@@ -50,7 +51,7 @@ public class GlobalTxConfig implements InitializingBean {
 
     @Override
     public String toString() {
-        return "GlobalTxConfig{" +
+        return "DTGlobalConfig{" +
                 "appName='" + appName + '\'' +
                 ", ip='" + ip + '\'' +
                 ", hashCode=" + hashCode +

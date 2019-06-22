@@ -43,7 +43,16 @@
 
 ## 使用方式
 
+使用此框架，要求非事务任务方法必须是幂等的，即多次执行效果相同，重复执行不会造成数据混乱
+如自定义业务编号作为方法入参
+
 ### MAVEN依赖及插件引入
+
+       <properties>
+                <java.source-target.version>1.8</java.source-target.version>
+                <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+                <aspectj.version>1.9.2</aspectj.version>
+        </properties>
 
         <dependency>
             <groupId>com.jianliu</groupId>
@@ -51,19 +60,44 @@
             <version>1.0-SNAPSHOT</version>
         </dependency>
         
+       
+        
         <plugin>
+                <!-- 指定maven编译的jdk版本,如果不指定,maven3默认用jdk 1.5 -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.1</version>
+                <configuration>
+                    <!-- 一般而言，target与source是保持一致的，但是，有时候为了让程序能在其他版本的jdk中运行(对于低版本目标jdk，源代码中不能使用低版本jdk中不支持的语法)，会存在target不同于source的情况 -->
+                    <source>${java.source-target.version}</source> <!-- 源代码使用的JDK版本 -->
+                    <target>${java.source-target.version}</target> <!-- 需要生成的目标class文件的编译版本 -->
+                    <encoding>${project.build.sourceEncoding}</encoding><!-- 字符集编码 -->
+                    <!--<skipTests>true</skipTests>&lt;!&ndash; 跳过测试 &ndash;&gt;-->
+                    <!--<verbose>true</verbose>-->
+                    <!--<showWarnings>true</showWarnings>-->
+                    <!--<fork>true</fork>&lt;!&ndash; 要使compilerVersion标签生效，还需要将fork设为true，用于明确表示编译版本配置的可用 &ndash;&gt;-->
+                    <!--<executable>&lt;!&ndash; path-to-javac &ndash;&gt;</executable>&lt;!&ndash; 使用指定的javac命令，例如：<executable>${JAVA_1_4_HOME}/bin/javac</executable> &ndash;&gt;-->
+                    <!--<compilerVersion>1.3</compilerVersion>&lt;!&ndash; 指定插件将使用的编译器的版本 &ndash;&gt;-->
+                    <!--<meminitial>128m</meminitial>&lt;!&ndash; 编译器使用的初始内存 &ndash;&gt;-->
+                    <!--<maxmem>512m</maxmem>&lt;!&ndash; 编译器使用的最大内存 &ndash;&gt;-->
+                </configuration>
+            </plugin>
+
+            <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>aspectj-maven-plugin</artifactId>
                 <version>1.10</version>
                 <configuration>
-                    <complianceLevel>1.8</complianceLevel>
-                    <source>1.8</source>
-                    <target>1.8</target>
-                    <showWeaveInfo>true</showWeaveInfo>
-                    <!--<verbose>true</verbose>-->
-                    <!--<encoding>utf-8</encoding>-->
+                    <!--<showWeaveInfo>true</showWeaveInfo> -->
+                    <source>${java.source-target.version}</source>
+                    <target>${java.source-target.version}</target>
+                    <Xlint>ignore</Xlint>
+                    <complianceLevel>${java.source-target.version}</complianceLevel>
+                    <encoding>${project.build.sourceEncoding}</encoding>
+                    <!--<verbose>true</verbose> -->
+                    <!--<warn>constructorName,packageDefaultMethod,deprecation,maskedCatchBlocks,unusedLocals,unusedArguments,unusedImport</warn> -->
                     <aspectLibraries>
-                        <aspectLibrary>
+                        <aspectLibrary>   //引入aspectj lib包
                             <groupId>com.jianliu</groupId>
                             <artifactId>distribute-core</artifactId>
                         </aspectLibrary>
@@ -71,15 +105,15 @@
                 </configuration>
                 <executions>
                     <execution>
+                        <!-- IMPORTANT -->
+                        <!--<phase>process-sources</phase>-->
                         <goals>
-                            <!--use this goal to weave all your main classes-->
                             <goal>compile</goal>
-                            <!--use this goal to weave all your test classes-->
                             <goal>test-compile</goal>
                         </goals>
                     </execution>
                 </executions>
-            </plugin>        
+            </plugin>
 
 ### 代码引入
 
@@ -95,7 +129,7 @@ Spring配置
     将业务DataSource的id设置为distributeTxDatasource，Router的DataSource或普通DataSource皆可
     如果全局只有一个Datasource，id不强制为distributeTxDatasource
     
-代码引入
+代码示例
 
     @DTransactional //使用DTransactional注解声明事务，该注解继承Spring的Transactional注解效果
     public void doTransaction(Integer i){
@@ -111,7 +145,7 @@ Spring配置
     }
 
 
-    @DTMethod //声明非事务任务方法，被该注解声明后，会将方法名称、参数写入mysql task记录表，异步执行
+    @DTMethod //声明非事务任务方法，被该注解声明后，会将方法名称、参数写入mysql task记录表，异步执行，要求方法多次执行幂等
     public void unTransactionUpdate(Integer i){
         logger.info("unTransactionUpdate run:" + i);
     }    

@@ -1,6 +1,6 @@
 package com.jianliu.distributetx;
 
-import com.jianliu.distributetx.tx.invocation.MethodInvocation;
+import com.jianliu.distributetx.tx.invocation.DTMethodInvocation;
 
 /**
  * class FailJobHandler
@@ -15,6 +15,6 @@ public interface FailureJobHandler {
      * 失败任务处理器
      * @param invocation
      */
-    void handle(MethodInvocation invocation);
+    void handle(DTMethodInvocation invocation);
 
 }

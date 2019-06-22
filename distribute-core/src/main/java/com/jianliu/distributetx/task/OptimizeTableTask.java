@@ -1,9 +1,9 @@
 package com.jianliu.distributetx.task;
 
 import com.jianliu.distributetx.BaseLogger;
-import com.jianliu.distributetx.config.DistributeTxConfiguration;
-import com.jianliu.distributetx.config.GlobalTxConfig;
-import com.jianliu.distributetx.entity.AppNode;
+import com.jianliu.distributetx.config.DTConfiguration;
+import com.jianliu.distributetx.config.DTGlobalConfig;
+import com.jianliu.distributetx.entity.DTAppNode;
 import com.jianliu.distributetx.repository.AppNodeRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceUtils;
@@ -37,14 +37,14 @@ public class OptimizeTableTask extends BaseLogger implements Runnable {
     private AppNodeRepository appNodeRepository;
 
     @Resource
-    private GlobalTxConfig globalTxConfig;
+    private DTGlobalConfig globalTxConfig;
 
     private final static String SQL = "optimize table distx_task;";
 
     /**
      * 非自动注入
      *
-     * @see DistributeTxConfiguration
+     * @see DTConfiguration
      */
     private DataSource dataSource;
 
@@ -59,14 +59,14 @@ public class OptimizeTableTask extends BaseLogger implements Runnable {
     public void run() {
 
         try {
-            List<AppNode> appNodeList = appNodeRepository.findAvaibleList(jdbcTemplate,
+            List<DTAppNode> appNodeList = appNodeRepository.findAvaibleList(jdbcTemplate,
                     globalTxConfig.getAppName(), new Date(new Date().getTime() - 5500));
             if (CollectionUtils.isEmpty(appNodeList)) {
                 return;
             }
 
             //第一个节点执行定时任务
-            AppNode appNode = appNodeList.get(0);
+            DTAppNode appNode = appNodeList.get(0);
             if (appNode.getAppName().equals(globalTxConfig.getAppName()) && appNode.getIp().equals(globalTxConfig.getIp())
                     && appNode.getHashCode().equals(globalTxConfig.getHashCode())) {
                 logger.warn("执行optimise table distx_task,本机配置:{}", globalTxConfig);

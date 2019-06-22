@@ -1,13 +1,13 @@
 package com.jianliu.distributetx.config;
 
 import com.jianliu.distributetx.BaseLogger;
-import com.jianliu.distributetx.repository.DBHelper;
+import com.jianliu.distributetx.repository.DTDBHelper;
 import com.jianliu.distributetx.serde.Serializer;
 import com.jianliu.distributetx.serde.JacksonSerializer;
 import com.jianliu.distributetx.repository.AppNodeRepository;
 import com.jianliu.distributetx.repository.TaskRepository;
 import com.jianliu.distributetx.task.OptimizeTableTask;
-import com.jianliu.distributetx.task.TaskManager;
+import com.jianliu.distributetx.task.DTTaskManager;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -29,7 +29,7 @@ import java.util.concurrent.Executors;
  */
 @Configuration
 //@ConditionalOnBean(DataSource.class)
-public class DistributeTxConfiguration extends BaseLogger implements SchedulingConfigurer {
+public class DTConfiguration extends BaseLogger implements SchedulingConfigurer {
 
     private final static Serializer DEFAULT_SERIALIZER = new JacksonSerializer();
 
@@ -43,8 +43,8 @@ public class DistributeTxConfiguration extends BaseLogger implements SchedulingC
     private String cron;
 
     @Bean
-    public TaskManager taskManager() {
-        TaskManager taskManager = new TaskManager();
+    public DTTaskManager taskManager() {
+        DTTaskManager taskManager = new DTTaskManager();
         taskManager.setDataSource(distributeTxDatasource);
         return taskManager;
     }
@@ -60,13 +60,13 @@ public class DistributeTxConfiguration extends BaseLogger implements SchedulingC
     }
 
     @Bean
-    public GlobalTxConfig globalTxConfig() {
-        return new GlobalTxConfig();
+    public DTGlobalConfig globalTxConfig() {
+        return new DTGlobalConfig();
     }
 
     @Bean
-    public DBHelper dbHelper() {
-        return new DBHelper();
+    public DTDBHelper dbHelper() {
+        return new DTDBHelper();
     }
 
     @Bean

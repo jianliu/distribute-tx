@@ -9,7 +9,7 @@ import java.util.Date;
  * @author jian.liu
  * @since 2019/6/18
  */
-public class AppNode {
+public class DTAppNode {
 
     public final static Integer STATUS_ONLINE = 1;
     public final static Integer STATUS_OFFLINE = 0;

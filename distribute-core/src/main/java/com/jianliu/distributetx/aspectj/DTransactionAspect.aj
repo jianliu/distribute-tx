@@ -1,19 +1,21 @@
 package com.jianliu.distributetx.aspectj;
 
-import com.jianliu.distributetx.repository.DBHelper;
+import com.jianliu.distributetx.BaseLogger;
+import com.jianliu.distributetx.repository.DTDBHelper;
 import com.jianliu.distributetx.tx.DTContextHold;
-import com.jianliu.distributetx.tx.invocation.MethodInvocation;
+import com.jianliu.distributetx.tx.invocation.DTMethodInvocation;
 import com.jianliu.distributetx.util.TxUtil;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.annotation.Pointcut;
+import org.aspectj.lang.reflect.MethodSignature;
 
 /**
  * 分布式注解Aspect切面定义
  */
 @Aspect
-public class DTransactionAspect {
+public class DTransactionAspect extends BaseLogger {
 
 
     /**
@@ -34,10 +36,15 @@ public class DTransactionAspect {
         //调用原方法的执行。
         Object result = null;
         try {
+            if (logger.isDebugEnabled()) {
+                logger.debug("即将执行DTransactional注解拦截");
+            }
             result = joinPoint.proceed();
-            System.out.println("after run");
-        } catch (Throwable throwable) {
-            throwable.printStackTrace();
+            if (logger.isDebugEnabled()) {
+                logger.debug("完成执行DTransactional注解拦截");
+            }
+        } catch (Throwable t) {
+            logger.error("拦截DTransactional失败", t);
         }
         return result;
     }
@@ -53,11 +60,16 @@ public class DTransactionAspect {
         System.out.println(joinPoint.getThis());
         System.out.println(joinPoint.getTarget());
         Object[] params = joinPoint.getArgs();
-        MethodInvocation methodInvocation = new MethodInvocation();
+        DTMethodInvocation methodInvocation = new DTMethodInvocation();
         methodInvocation.setClazz(clazz);
         methodInvocation.setParameters(params);
-        methodInvocation.setMethod(joinPoint.getSignature().getName());
-        DBHelper.addTask(methodInvocation, joinPoint.getTarget());
+        MethodSignature methodSignature = (MethodSignature) joinPoint.getSignature();
+        methodInvocation.setMethod(methodSignature.getName());
+        methodInvocation.setParameterTypes(methodSignature.getParameterTypes());
+        if (logger.isDebugEnabled()) {
+            logger.debug("拦截DTMethod注解，即将插入任务");
+        }
+        DTDBHelper.addTask(methodInvocation, joinPoint.getTarget());
 
         return null;
     }

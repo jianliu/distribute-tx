@@ -9,7 +9,7 @@ import java.util.Date;
  * @author jian.liu
  * @since 2019/6/18
  */
-public class Task {
+public class DTTask {
 
     public final static Integer STATUS_CREATE = 1;
     public final static Integer STATUS_DOING = 2;
@@ -17,6 +17,8 @@ public class Task {
     public final static Integer STATUS_FAILURE = 4;
     //异常处理结束
     public final static Integer STATUS_HANDLED = 5;
+    //任务已无效，如bean已不存在
+    public final static Integer STATUS_INVALID_TASK = 6;
 
     private Integer id;
 

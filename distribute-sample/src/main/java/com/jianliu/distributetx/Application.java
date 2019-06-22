@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import java.util.Arrays;
 
 /**
+ * 扫描路径com.jianliu.distributetx即可加载相关对象到Spring中
  * @SpringBootApplication is a convenience annotation that adds all of the following:
  * @Configuration tags the class as a source of bean definitions for the application context.
  * @EnableAutoConfiguration tells Spring Boot to start adding beans based on classpath settings, other beans, and various property settings.
@@ -27,7 +28,7 @@ public class Application {
         System.out.println("=================");
 
         TestService testService = applicationContext.getBean(TestService.class);
-        testService.doTransaction(1);
+        testService.doTransaction(2);
     }
 
     @Bean
