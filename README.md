@@ -4,9 +4,9 @@
 ## 典型场景
 
     begin transaction
+    mysql.update 
     mongodb.update
     redis.delete
-    mysql.update 
     ... 操作 可能异常 ...
     commit or rollback
     
@@ -14,9 +14,9 @@
 
 情况1
  
-    mongodb.update    成功
-    redis.delete 成功
+    mongodb.update    成功 //mongodb已修改
     mysql.update 失败
+    redis.delete ..  //异常导致rollback，redis.delete不会执行
     transaction rollback
     => mongodb更新的数据和mysql的数据不一致
 
@@ -24,13 +24,17 @@
 情况2
   
     mongodb.update    成功
-    redis.delete 成功
     mysql.update 成功
+    redis.delete 成功
+    mq.send()
     ...
     transaction commit
     =>te
     另一个线程在redis.delete后,transaction commit前 立即查询mysql并缓存，可能出现缓存老数据的情况
     如果在事务中直接设置redis缓存，又可能出现情况1遭遇的难题
+
+情况2是一个更加接近现实场景的例子,由于mysql.update是成功的，因此redis.delete执行，此时由于mysql事务未提交，则其他线程发现缓存不存在时，可能立即更缓存，而此时mysql库中的数据仍然是未更新的，这直接导致redis缓存没有刷新，其他的情况如查询时的读写分离将进一步加剧其概率。
+同样的，假设redis.delete或其后的代码执行失败，将导致事务回滚，但这个回滚原因似乎不具备很强的说服力：一个非主业务的缓存删除失败，并且有可能是一个网络抖动，导致上方一个非常复杂的sql序列执行功亏一篑，这不是我们真正想见到的
     
 ## 解决方案
 将非事务操作封装成task记录和mysql更新一起写入同一个mysql库，利用单库的ACID来保证事务一致性
