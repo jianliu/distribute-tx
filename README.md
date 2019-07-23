@@ -164,4 +164,5 @@ Aspectj本身无自调用问题，请勿担心
 
 由于aspectj对版本依赖较为严重，使用时可能需要根据当前jdk版本来调整aspectj版本及插件版本
 同时aspectj目前暂时无法和lombok共存
-基因javaagent的探针技术可以缓解这个问题，但需要在启动时添加jvm参数
+
+基于javaagent的探针技术可以缓解这个问题，但需要在启动时添加jvm参数
