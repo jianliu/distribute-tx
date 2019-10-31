@@ -8,7 +8,7 @@
     <artifactId>distribute-core</artifactId>
 
     <properties>
-        <fastxml.version>2.9.9</fastxml.version>
+        <fastxml.version>2.10.0</fastxml.version>
         <spring.data.jdbc.version>1.0.6.RELEASE</spring.data.jdbc.version>
         <java.source-target.version>1.8</java.source-target.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
