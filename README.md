@@ -14,8 +14,8 @@
 
 情况1
  
+    mysql.update 成功
     mongodb.update    成功 //mongodb已修改
-    mysql.update 失败
     redis.delete ..  //异常导致rollback，redis.delete不会执行
     transaction rollback
     => mongodb更新的数据和mysql的数据不一致
@@ -23,8 +23,8 @@
      
 情况2
   
-    mongodb.update    成功
     mysql.update 成功
+    mongodb.update    成功
     redis.delete 成功
     mq.send()
     ...
